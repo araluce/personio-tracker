@@ -3,13 +3,12 @@
 use anyhow::Result;
 use tokio::sync::mpsc;
 
-use crate::config::Settings;
+use crate::config::{PasswordProvider, Settings};
 use crate::event::TrackingEvent;
 use crate::{keychain, tracking};
 
 pub async fn run(settings: Settings) -> Result<()> {
-    let password = keychain::resolve_password();
-    let config = settings.to_run_config(password)?;
+    let config = settings.to_run_config(PasswordProvider::new(keychain::resolve_password))?;
 
     let (sink, mut events) = mpsc::unbounded_channel::<TrackingEvent>();
     let printer = tokio::spawn(async move {

@@ -4,8 +4,10 @@
 //! `settings.json` (same camelCase keys), so an existing file can be copied
 //! over without conversion. Unknown keys such as `launchAtLogin` are ignored.
 
+use std::fmt;
 use std::fs;
 use std::path::PathBuf;
+use std::sync::Arc;
 
 use anyhow::{Context, Result, bail};
 use directories::ProjectDirs;
@@ -92,11 +94,11 @@ impl Settings {
         Ok(path)
     }
 
-    /// Turns settings plus the resolved password into a runnable configuration.
-    pub fn to_run_config(&self, password: Option<String>) -> Result<RunConfig> {
+    /// Turns settings plus a password source into a runnable configuration.
+    pub fn to_run_config(&self, password: PasswordProvider) -> Result<RunConfig> {
         let config = RunConfig {
             personio_email: self.personio_email.trim().to_string(),
-            personio_password: password.filter(|value| !value.trim().is_empty()),
+            personio_password: password,
             personio_company: self.personio_company.trim().to_string(),
             employee_id: self.employee_id.trim().to_string(),
             show_browser: self.show_browser,
@@ -111,11 +113,39 @@ impl Settings {
     }
 }
 
+/// Where a run gets its password, resolved only if it turns out to need one.
+///
+/// Resolving is what makes the OS put up its keychain dialog, and a run that
+/// replays a saved session never logs in — so it must never ask. The provider
+/// defers that decision to the one place that knows: the login step itself.
+#[derive(Clone)]
+pub struct PasswordProvider(Arc<dyn Fn() -> Option<String> + Send + Sync>);
+
+impl PasswordProvider {
+    pub fn new(resolve: impl Fn() -> Option<String> + Send + Sync + 'static) -> Self {
+        Self(Arc::new(resolve))
+    }
+
+    /// Asks the source for the password. Blank is the same as absent: a
+    /// half-filled `.env` should read as "no password", not as an empty one.
+    pub fn resolve(&self) -> Option<String> {
+        (self.0)().filter(|value| !value.trim().is_empty())
+    }
+}
+
+impl fmt::Debug for PasswordProvider {
+    /// Deliberately opaque: `RunConfig` derives `Debug`, and a config that
+    /// ends up in a log line or an error chain must not carry the password.
+    fn fmt(&self, formatter: &mut fmt::Formatter<'_>) -> fmt::Result {
+        formatter.write_str("PasswordProvider")
+    }
+}
+
 /// Everything a tracking run needs, already validated.
 #[derive(Debug, Clone)]
 pub struct RunConfig {
     pub personio_email: String,
-    pub personio_password: Option<String>,
+    pub personio_password: PasswordProvider,
     pub personio_company: String,
     pub employee_id: String,
     pub show_browser: bool,
@@ -226,6 +256,17 @@ pub fn session_path() -> Result<PathBuf> {
 #[cfg(test)]
 mod tests {
     use super::*;
+    use std::sync::atomic::{AtomicUsize, Ordering};
+
+    /// The minimum that passes validation, so a test can say what it is about.
+    fn settings() -> Settings {
+        Settings {
+            personio_email: "a@b.com".into(),
+            personio_company: "acme".into(),
+            employee_id: "42".into(),
+            ..Settings::default()
+        }
+    }
 
     #[test]
     fn parses_padded_times() {
@@ -242,13 +283,9 @@ mod tests {
 
     #[test]
     fn builds_urls_without_double_slashes() {
-        let settings = Settings {
-            personio_email: "a@b.com".into(),
-            personio_company: "acme".into(),
-            employee_id: "42".into(),
-            ..Settings::default()
-        };
-        let config = settings.to_run_config(None).unwrap();
+        let config = settings()
+            .to_run_config(PasswordProvider::new(|| None))
+            .unwrap();
 
         assert_eq!(config.base_url(), "https://acme.app.personio.com");
         assert_eq!(config.home_url(), "https://acme.app.personio.com/");
@@ -260,7 +297,9 @@ mod tests {
 
     #[test]
     fn validation_reports_every_missing_field() {
-        let error = Settings::default().to_run_config(None).unwrap_err();
+        let error = Settings::default()
+            .to_run_config(PasswordProvider::new(|| None))
+            .unwrap_err();
         let message = error.to_string();
 
         assert!(message.contains("email"), "{message}");
@@ -284,5 +323,46 @@ mod tests {
         assert_eq!(settings.personio_email, "a@b.com");
         assert_eq!(settings.start_time_first_slot, DEFAULT_START_FIRST);
         assert!(settings.show_browser);
+    }
+
+    /// The whole point of the provider: building a run config must not reach
+    /// the password source, or pressing `t` would prompt the keychain before
+    /// the browser has even tried the saved session.
+    #[test]
+    fn building_a_run_config_never_resolves_the_password() {
+        let asked = Arc::new(AtomicUsize::new(0));
+        let counter = Arc::clone(&asked);
+        let provider = PasswordProvider::new(move || {
+            counter.fetch_add(1, Ordering::SeqCst);
+            Some("hunter2".to_string())
+        });
+
+        let config = settings().to_run_config(provider).unwrap();
+        assert_eq!(asked.load(Ordering::SeqCst), 0);
+
+        assert_eq!(
+            config.personio_password.resolve().as_deref(),
+            Some("hunter2")
+        );
+        assert_eq!(asked.load(Ordering::SeqCst), 1);
+    }
+
+    #[test]
+    fn a_blank_password_resolves_to_none() {
+        assert_eq!(PasswordProvider::new(|| Some("   ".into())).resolve(), None);
+        assert_eq!(
+            PasswordProvider::new(|| Some(String::new())).resolve(),
+            None
+        );
+        assert_eq!(PasswordProvider::new(|| None).resolve(), None);
+    }
+
+    #[test]
+    fn a_debugged_config_does_not_leak_the_password() {
+        let config = settings()
+            .to_run_config(PasswordProvider::new(|| Some("hunter2".into())))
+            .unwrap();
+
+        assert!(!format!("{config:?}").contains("hunter2"));
     }
 }

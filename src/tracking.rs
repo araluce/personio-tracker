@@ -209,7 +209,16 @@ async fn login(browser: &Browser, page: &Page, config: &RunConfig, sink: &EventS
 
     emit(sink, TrackingEvent::AuthLoginStart);
 
-    let Some(password) = config.personio_password.as_deref() else {
+    // First and only point in a run that needs the password: a replayed
+    // session returns above, without ever reaching the keychain. Resolving on
+    // a blocking thread because the OS dialog sits there for as long as the
+    // user takes, and a parked runtime worker would freeze the UI with it.
+    let provider = config.personio_password.clone();
+    let password = tokio::task::spawn_blocking(move || provider.resolve())
+        .await
+        .context("resolving the password")?;
+
+    let Some(password) = password else {
         bail!(
             "Login required but no password is available. \
              Store one from the Password field in the UI, \
@@ -229,7 +238,7 @@ async fn login(browser: &Browser, page: &Page, config: &RunConfig, sink: &EventS
         .await
         .context("waiting for the password field")?;
 
-    fill_input(page, selectors::PASSWORD_INPUT, password).await?;
+    fill_input(page, selectors::PASSWORD_INPUT, &password).await?;
     Locator::new(page, selectors::SUBMIT_BUTTON)
         .click(DEFAULT_TIMEOUT)
         .await?;

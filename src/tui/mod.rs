@@ -10,7 +10,7 @@ use crossterm::event::{Event, EventStream};
 use futures::StreamExt;
 use tokio::sync::mpsc;
 
-use crate::config::Settings;
+use crate::config::{PasswordProvider, Settings};
 use crate::event::{EventSink, Severity};
 use crate::{keychain, tracking};
 
@@ -29,7 +29,7 @@ pub async fn run(settings: Settings) -> Result<()> {
 }
 
 async fn event_loop(terminal: &mut ratatui::DefaultTerminal, settings: Settings) -> Result<()> {
-    let mut app = App::new(settings, keychain::get_password().is_some());
+    let mut app = App::new(settings, keychain::has_password());
     let (sink, mut events) = mpsc::unbounded_channel();
     let mut input = EventStream::new();
     let mut ticker = tokio::time::interval(TICK);
@@ -112,7 +112,9 @@ async fn perform(app: &mut App, action: Action, sink: &EventSink) {
 }
 
 fn start_tracking(app: &mut App, sink: &EventSink) {
-    let password = keychain::resolve_password();
+    // Passed as a source, not a value: pressing `t` must not reach the
+    // keychain, only a run that discovers it has to log in.
+    let password = PasswordProvider::new(keychain::resolve_password);
 
     let config = match app.settings.to_run_config(password) {
         Ok(config) => config,

@@ -102,9 +102,9 @@ Read from the OS keychain first (service `personio-track`, account
 `personio-password` — the same entry the Electron app used, so it carries
 over), falling back to `PERSONIO_PASSWORD`.
 
-Press `p`… actually: select the `Password` field and press `enter` to store a
-new one. It is written to the keychain and never read back into the UI — the
-field only ever shows whether one is stored.
+To store a new one, select the `Password` field and press `enter`. It is
+written to the keychain and never read back into the UI — the field only ever
+shows whether one is stored.
 
 ### Session
 

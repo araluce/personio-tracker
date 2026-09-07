@@ -212,7 +212,8 @@ async fn login(browser: &Browser, page: &Page, config: &RunConfig, sink: &EventS
     let Some(password) = config.personio_password.as_deref() else {
         bail!(
             "Login required but no password is available. \
-             Save it from the TUI (press p) or set PERSONIO_PASSWORD."
+             Store one from the Password field in the UI, \
+             or set PERSONIO_PASSWORD."
         );
     };
 

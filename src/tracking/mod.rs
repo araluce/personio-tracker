@@ -42,6 +42,14 @@ const SETTLE_AFTER_SAVE: Duration = Duration::from_secs(2);
 const SETTLE_AFTER_TIME_INPUT: Duration = Duration::from_secs(1);
 const SETTLE_AFTER_COOKIES: Duration = Duration::from_secs(1);
 
+/// How long a login may take, and how often it is checked. Personio's
+/// two-step form redirects a few times before it settles.
+pub(super) const LOGIN_TIMEOUT: Duration = Duration::from_secs(30);
+pub(super) const LOGIN_POLL_INTERVAL: Duration = Duration::from_millis(250);
+
+/// The month-hours widget renders late; not finding it is not an error.
+const HOURS_WIDGET_TIMEOUT: Duration = Duration::from_secs(10);
+
 /// Runs a full tracking session, reporting progress through `sink`.
 pub async fn run_tracking(config: &RunConfig, sink: &EventSink) -> Result<Summary> {
     let mut summary = Summary::default();
@@ -313,7 +321,7 @@ async fn fill_time_input(page: &Page, input_selector: &str, time: &str) -> Resul
 async fn pending_hours(page: &Page, sink: &EventSink) -> Result<bool> {
     let widget = Locator::new(page, selectors::MONTH_HOURS_WIDGET);
 
-    if widget.wait_in_view(Duration::from_secs(10)).await.is_err() {
+    if widget.wait_in_view(HOURS_WIDGET_TIMEOUT).await.is_err() {
         let count = widget.count().await;
         emit(
             sink,

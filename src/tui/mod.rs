@@ -142,17 +142,12 @@ async fn perform(app: &mut App, action: Action, sink: &EventSink) {
 /// killed halfway loses nothing that matters, because the next one reads the
 /// same days back from Personio.
 fn finish_run(app: &mut App) {
-    // Said out loud on purpose. A grid quietly missing days looks exactly
-    // like a broken one, and that is a bug report nobody can act on.
-    let unplaced = app.unplaced_days();
-    if unplaced > 0 {
-        app.push_log(
-            format!("{unplaced} day(s) could not be placed on the month grid"),
-            Severity::Error,
-        );
-    }
+    let record = app.finish_recording();
 
-    if let Err(error) = app.calendar().save() {
+    if let Some(note) = record.unplaced_note() {
+        app.push_log(note, Severity::Error);
+    }
+    if let Err(error) = record.saved {
         app.toast(format!("Could not save the day record: {error:#}"), true);
     }
 }

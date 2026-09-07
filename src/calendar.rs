@@ -202,6 +202,32 @@ impl Calendar {
     }
 }
 
+/// What a front-end has to report once a run is over.
+///
+/// Both of them need the same two facts, in the same order, and differ only in
+/// where they print them — so the facts, and the sentence for the first of
+/// them, are decided here rather than twice.
+#[derive(Debug)]
+pub struct RunRecord {
+    /// Days no date could be worked out for.
+    pub unplaced: usize,
+    /// Where the record went, or why it could not be written.
+    pub saved: Result<PathBuf>,
+}
+
+impl RunRecord {
+    /// The line worth saying about unplaced days, when there are any. A grid
+    /// quietly missing days looks exactly like a broken one.
+    pub fn unplaced_note(&self) -> Option<String> {
+        (self.unplaced > 0).then(|| {
+            format!(
+                "{} day(s) could not be placed on the month grid",
+                self.unplaced
+            )
+        })
+    }
+}
+
 /// Folds a run's events into calendar state, whichever front-end is driving.
 ///
 /// Both front-ends record: a `--cli` run from `cron` must leave the same trail
@@ -246,9 +272,21 @@ impl Recorder {
         &self.calendar
     }
 
-    /// Days this recorder could not place on any date.
+    /// Days this recorder could not place, without closing the run out.
+    ///
+    /// Test-only on purpose: [`finish`](Self::finish) writes the record to
+    /// disk, which a test must not do.
+    #[cfg(test)]
     pub fn unplaced(&self) -> usize {
         self.unplaced
+    }
+
+    /// Closes a run out: what could not be placed, and the record written.
+    pub fn finish(&self) -> RunRecord {
+        RunRecord {
+            unplaced: self.unplaced,
+            saved: self.calendar.save(),
+        }
     }
 
     pub fn apply(&mut self, event: &TrackingEvent) {

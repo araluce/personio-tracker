@@ -36,11 +36,12 @@ pub async fn run(settings: Settings, show_browser: Option<bool>) -> Result<()> {
     // Written before the run's own failure is raised: a run that died halfway
     // still resolved days, and throwing them away would blank the grid.
     if let Ok(recorder) = printer.await {
-        let unplaced = recorder.unplaced();
-        if unplaced > 0 {
-            eprintln!("{unplaced} day(s) could not be placed on the month grid");
+        let record = recorder.finish();
+
+        if let Some(note) = record.unplaced_note() {
+            eprintln!("{note}");
         }
-        if let Err(error) = recorder.calendar().save() {
+        if let Err(error) = record.saved {
             eprintln!("Could not save the day record: {error:#}");
         }
     }

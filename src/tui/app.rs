@@ -5,7 +5,7 @@ use std::time::{Duration, Instant};
 use crossterm::event::{KeyCode, KeyEvent, KeyEventKind, KeyModifiers};
 use tokio::task::JoinHandle;
 
-use crate::calendar::{Calendar, MonthKey, Recorder};
+use crate::calendar::{Calendar, MonthKey, Recorder, RunRecord};
 use crate::config::Settings;
 use crate::event::{Severity, Summary, TrackingEvent};
 
@@ -214,7 +214,9 @@ impl App {
         }
     }
 
-    fn field_value(&self, field: Field) -> String {
+    /// What editing a field starts from, which is not always what the pane
+    /// shows: the password field opens empty rather than seeded with a mask.
+    fn edit_seed(&self, field: Field) -> String {
         match field {
             Field::Password => String::new(),
             _ => self.field_display(field),
@@ -278,9 +280,9 @@ impl App {
         self.recorder.calendar()
     }
 
-    /// Days the last run could not place on the grid.
-    pub fn unplaced_days(&self) -> usize {
-        self.recorder.unplaced()
+    /// Closes the run out: see [`Recorder::finish`].
+    pub fn finish_recording(&self) -> RunRecord {
+        self.recorder.finish()
     }
 
     /// The month the grid is showing.
@@ -476,7 +478,7 @@ impl App {
 
         if field.is_text() {
             self.mode = Mode::Editing;
-            self.edit_buffer = self.field_value(field);
+            self.edit_buffer = self.edit_seed(field);
         }
 
         None

@@ -4,14 +4,12 @@
 //! A run that replays a saved session never reaches [`login`], which is what
 //! keeps the OS keychain out of the way of an ordinary run.
 
-use std::time::Duration;
-
 use anyhow::{Context, Result, bail};
 use chromiumoxide::browser::Browser;
 use chromiumoxide::page::Page;
 use tokio::time::sleep;
 
-use super::{SETTLE_AFTER_COOKIES, selectors};
+use super::{LOGIN_POLL_INTERVAL, LOGIN_TIMEOUT, SETTLE_AFTER_COOKIES, selectors};
 use crate::browser::locator::{DEFAULT_TIMEOUT, Locator, SHORT_TIMEOUT, eval, js_string};
 use crate::browser::session;
 use crate::config::RunConfig;
@@ -95,7 +93,7 @@ pub(super) async fn login(
 /// bounces through an interstitial that shares the origin.
 async fn wait_for_login(page: &Page, config: &RunConfig) -> Result<()> {
     let base_url = config.base_url();
-    let deadline = tokio::time::Instant::now() + Duration::from_secs(30);
+    let deadline = tokio::time::Instant::now() + LOGIN_TIMEOUT;
 
     loop {
         let on_origin = page
@@ -117,7 +115,7 @@ async fn wait_for_login(page: &Page, config: &RunConfig) -> Result<()> {
             bail!("login did not complete within 30s — check the credentials");
         }
 
-        sleep(Duration::from_millis(250)).await;
+        sleep(LOGIN_POLL_INTERVAL).await;
     }
 }
 

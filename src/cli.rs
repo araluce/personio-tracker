@@ -8,8 +8,11 @@ use crate::config::{PasswordProvider, Settings};
 use crate::event::TrackingEvent;
 use crate::{keychain, tracking};
 
-pub async fn run(settings: Settings) -> Result<()> {
-    let config = settings.to_run_config(PasswordProvider::new(keychain::resolve_password))?;
+pub async fn run(settings: Settings, show_browser: Option<bool>) -> Result<()> {
+    let config = settings.to_run_config(
+        PasswordProvider::new(keychain::resolve_password),
+        show_browser,
+    )?;
 
     let (sink, mut events) = mpsc::unbounded_channel::<TrackingEvent>();
 

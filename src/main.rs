@@ -115,14 +115,14 @@ async fn main() -> Result<()> {
         Command::Tui | Command::Cli => {}
     }
 
-    let mut settings = Settings::load();
-    if let Some(show_browser) = args.show_browser {
-        settings.show_browser = show_browser;
-    }
+    let settings = Settings::load();
 
+    // The visibility flag is handed to the run, never merged into the
+    // settings: it is documented as applying to this run only, and folding it
+    // in would show it as the stored value and save it with `w`.
     match args.command {
-        Command::Cli => cli::run(settings).await,
-        _ => tui::run(settings).await,
+        Command::Cli => cli::run(settings, args.show_browser).await,
+        _ => tui::run(settings, args.show_browser).await,
     }
 }
 

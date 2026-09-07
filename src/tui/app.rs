@@ -138,6 +138,11 @@ pub struct App {
     /// rendering stays a pure function of state.
     pub tick: u64,
     pub keychain_has_password: bool,
+    /// The `--show` / `--headless` override for this run, which is
+    /// deliberately not part of `settings`: the configuration pane shows what
+    /// is stored, and `w` saves what is stored. Each run reports the value it
+    /// actually used in its first log line.
+    pub show_browser_override: Option<bool>,
     pub should_quit: bool,
     /// Present while a run is in flight, so it can be aborted on force-quit.
     pub run_task: Option<JoinHandle<()>>,
@@ -165,6 +170,7 @@ impl App {
             toast: None,
             tick: 0,
             keychain_has_password,
+            show_browser_override: None,
             should_quit: false,
             run_task: None,
         }
@@ -796,5 +802,23 @@ mod tests {
 
         assert_eq!(app.edit_buffer, "hl");
         assert_eq!(app.viewed_month(), MonthKey::current());
+    }
+
+    /// The pane shows what is stored, so what `w` saves and what `space`
+    /// toggles are the same thing the pane is showing.
+    #[test]
+    fn the_pane_shows_the_stored_visibility_even_under_a_flag() {
+        let mut app = App::new(
+            Settings {
+                show_browser: false,
+                ..Settings::default()
+            },
+            false,
+            Calendar::default(),
+        );
+        app.show_browser_override = Some(true);
+
+        assert_eq!(app.field_display(Field::ShowBrowser), "off");
+        assert!(!app.has_unsaved_changes(), "a flag is not an edit");
     }
 }

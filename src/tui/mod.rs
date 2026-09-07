@@ -25,16 +25,21 @@ const TICK_RUNNING: Duration = Duration::from_millis(80);
 
 /// Takes over the terminal, runs the loop, and always restores the terminal —
 /// including on a panic, which `ratatui::restore` handles via its hook.
-pub async fn run(settings: Settings) -> Result<()> {
+pub async fn run(settings: Settings, show_browser: Option<bool>) -> Result<()> {
     let mut terminal = ratatui::try_init()
         .context("could not take over the terminal — for a non-interactive run, use --cli")?;
-    let result = event_loop(&mut terminal, settings).await;
+    let result = event_loop(&mut terminal, settings, show_browser).await;
     ratatui::restore();
     result
 }
 
-async fn event_loop(terminal: &mut ratatui::DefaultTerminal, settings: Settings) -> Result<()> {
+async fn event_loop(
+    terminal: &mut ratatui::DefaultTerminal,
+    settings: Settings,
+    show_browser: Option<bool>,
+) -> Result<()> {
     let mut app = App::new(settings, keychain::has_password(), Calendar::load());
+    app.show_browser_override = show_browser;
     let (sink, mut events) = mpsc::unbounded_channel();
     let mut input = EventStream::new();
     let mut ticker = tokio::time::interval(TICK_IDLE);
@@ -157,7 +162,10 @@ fn start_tracking(app: &mut App, sink: &EventSink) {
     // keychain, only a run that discovers it has to log in.
     let password = PasswordProvider::new(keychain::resolve_password);
 
-    let config = match app.settings.to_run_config(password) {
+    let config = match app
+        .settings
+        .to_run_config(password, app.show_browser_override)
+    {
         Ok(config) => config,
         Err(error) => {
             let message = format!("{error:#}");

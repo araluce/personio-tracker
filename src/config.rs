@@ -20,6 +20,9 @@ const SETTINGS_FILE: &str = "settings.json";
 const SESSION_FILE: &str = "session.json";
 const CALENDAR_FILE: &str = "calendar.json";
 
+/// As the on-disk (and Electron) format spells it.
+const SHOW_BROWSER_KEY: &str = "showBrowser";
+
 const DEFAULT_START_FIRST: &str = "09:00";
 const DEFAULT_END_FIRST: &str = "14:00";
 const DEFAULT_START_SECOND: &str = "15:00";
@@ -59,15 +62,23 @@ impl Settings {
     /// environment. Values already present in the file win, so editing in the
     /// TUI always takes precedence over a stale `.env`.
     pub fn load() -> Self {
-        let mut settings = Self::read_file().unwrap_or_default();
+        let stored = Self::read_file();
+        let from_file = stored.as_ref().and_then(|stored| stored.show_browser);
+
+        let mut settings = stored.map_or_else(Self::default, |stored| stored.settings);
         settings.apply_env_fallbacks();
+        settings.show_browser = resolve_show_browser(from_file, std::env::var("SHOW_BROWSER").ok());
         settings
     }
 
-    fn read_file() -> Option<Self> {
+    fn read_file() -> Option<Stored> {
         let path = settings_path().ok()?;
         let raw = fs::read_to_string(path).ok()?;
-        serde_json::from_str(&raw).ok()
+
+        Some(Stored {
+            settings: serde_json::from_str(&raw).ok()?,
+            show_browser: show_browser_in(&raw),
+        })
     }
 
     fn apply_env_fallbacks(&mut self) {
@@ -78,10 +89,6 @@ impl Settings {
         fill_blank(&mut self.end_time_first_slot, "END_TIME_FIRST_SLOT");
         fill_blank(&mut self.start_time_second_slot, "START_TIME_SECOND_SLOT");
         fill_blank(&mut self.end_time_second_slot, "END_TIME_SECOND_SLOT");
-
-        if let Ok(value) = std::env::var("SHOW_BROWSER") {
-            self.show_browser = value != "false";
-        }
     }
 
     pub fn save(&self) -> Result<PathBuf> {
@@ -96,13 +103,20 @@ impl Settings {
     }
 
     /// Turns settings plus a password source into a runnable configuration.
-    pub fn to_run_config(&self, password: PasswordProvider) -> Result<RunConfig> {
+    ///
+    /// `show_browser` is the `--show` / `--headless` override, which belongs to
+    /// the run and not to the settings: `None` uses what is stored.
+    pub fn to_run_config(
+        &self,
+        password: PasswordProvider,
+        show_browser: Option<bool>,
+    ) -> Result<RunConfig> {
         let config = RunConfig {
             personio_email: self.personio_email.trim().to_string(),
             personio_password: password,
             personio_company: self.personio_company.trim().to_string(),
             employee_id: self.employee_id.trim().to_string(),
-            show_browser: self.show_browser,
+            show_browser: show_browser.unwrap_or(self.show_browser),
             session_file: session_path()?,
             start_time_first_slot: non_blank(&self.start_time_first_slot, DEFAULT_START_FIRST),
             end_time_first_slot: non_blank(&self.end_time_first_slot, DEFAULT_END_FIRST),
@@ -222,6 +236,42 @@ pub fn parse_time(value: &str) -> Result<(String, String)> {
     Ok((format!("{parsed_hours:02}"), format!("{parsed_minutes:02}")))
 }
 
+/// A settings file, plus what it had to say about the one field that cannot
+/// be blank.
+struct Stored {
+    settings: Settings,
+    show_browser: Option<bool>,
+}
+
+/// What a settings file says about `showBrowser`, if it says anything.
+///
+/// Read from the raw JSON rather than from the deserialised struct because a
+/// `bool` cannot express "absent": serde fills a missing key with the default
+/// and the two become indistinguishable.
+fn show_browser_in(raw: &str) -> Option<bool> {
+    serde_json::from_str::<serde_json::Value>(raw)
+        .ok()
+        .and_then(|value| value.get(SHOW_BROWSER_KEY)?.as_bool())
+}
+
+/// Whether to show the browser, from what the file said and what the
+/// environment says.
+///
+/// The file wins, like every other field: `fill_blank` leaves a stored value
+/// alone and only fills a blank one. A `bool` has no blank to test, which is
+/// how the environment came to overwrite this one on every start-up — so the
+/// toggle in the UI could be saved and still never stick.
+fn resolve_show_browser(from_file: Option<bool>, from_env: Option<String>) -> bool {
+    if let Some(stored) = from_file {
+        return stored;
+    }
+
+    from_env.map_or_else(
+        || Settings::default().show_browser,
+        |value| value.trim() != "false",
+    )
+}
+
 fn fill_blank(target: &mut String, key: &str) {
     if !target.trim().is_empty() {
         return;
@@ -289,7 +339,7 @@ mod tests {
     #[test]
     fn builds_urls_without_double_slashes() {
         let config = settings()
-            .to_run_config(PasswordProvider::new(|| None))
+            .to_run_config(PasswordProvider::new(|| None), None)
             .unwrap();
 
         assert_eq!(config.base_url(), "https://acme.app.personio.com");
@@ -303,7 +353,7 @@ mod tests {
     #[test]
     fn validation_reports_every_missing_field() {
         let error = Settings::default()
-            .to_run_config(PasswordProvider::new(|| None))
+            .to_run_config(PasswordProvider::new(|| None), None)
             .unwrap_err();
         let message = error.to_string();
 
@@ -342,7 +392,7 @@ mod tests {
             Some("hunter2".to_string())
         });
 
-        let config = settings().to_run_config(provider).unwrap();
+        let config = settings().to_run_config(provider, None).unwrap();
         assert_eq!(asked.load(Ordering::SeqCst), 0);
 
         assert_eq!(
@@ -365,9 +415,99 @@ mod tests {
     #[test]
     fn a_debugged_config_does_not_leak_the_password() {
         let config = settings()
-            .to_run_config(PasswordProvider::new(|| Some("hunter2".into())))
+            .to_run_config(PasswordProvider::new(|| Some("hunter2".into())), None)
             .unwrap();
 
         assert!(!format!("{config:?}").contains("hunter2"));
+    }
+
+    /// The README promises the file always wins over the environment. A bool
+    /// has no blank value for `fill_blank` to test, so this one field used to
+    /// be the exception — saved as `off`, back to `on` on the next start-up.
+    #[test]
+    fn a_stored_browser_setting_wins_over_the_environment() {
+        assert!(!resolve_show_browser(Some(false), Some("true".into())));
+        assert!(!resolve_show_browser(Some(false), Some("anything".into())));
+        assert!(resolve_show_browser(Some(true), Some("false".into())));
+    }
+
+    #[test]
+    fn the_environment_decides_only_what_the_file_left_out() {
+        assert!(!resolve_show_browser(None, Some("false".into())));
+        assert!(!resolve_show_browser(None, Some(" false ".into())));
+        assert!(resolve_show_browser(None, Some("true".into())));
+    }
+
+    #[test]
+    fn with_neither_the_browser_is_shown() {
+        assert_eq!(
+            resolve_show_browser(None, None),
+            Settings::default().show_browser
+        );
+    }
+
+    /// "Absent" and "false" have to stay distinguishable, which the
+    /// deserialised struct cannot express.
+    #[test]
+    fn a_file_that_says_nothing_about_the_browser_is_not_a_file_that_says_no() {
+        assert_eq!(show_browser_in(r#"{"showBrowser": false}"#), Some(false));
+        assert_eq!(show_browser_in(r#"{"showBrowser": true}"#), Some(true));
+        assert_eq!(show_browser_in(r#"{"personioEmail": "a@b.com"}"#), None);
+        assert_eq!(show_browser_in("{}"), None);
+        assert_eq!(show_browser_in(r#"{"showBrowser": "off"}"#), None);
+        assert_eq!(show_browser_in("{ not json"), None);
+    }
+
+    /// The whole round trip, on a real file: saved as off, read back as off.
+    #[test]
+    fn a_browser_setting_saved_as_off_reads_back_as_off() {
+        let settings = Settings {
+            show_browser: false,
+            ..settings()
+        };
+        let raw = serde_json::to_string_pretty(&settings).unwrap();
+
+        assert_eq!(show_browser_in(&raw), Some(false));
+        assert!(!resolve_show_browser(
+            show_browser_in(&raw),
+            Some("true".into())
+        ));
+    }
+
+    /// `--show` and `--headless` are documented as applying to one run, so
+    /// they must not reach the settings: the pane would show them as stored
+    /// and `w` would write them to disk.
+    #[test]
+    fn a_visibility_override_applies_to_the_run_and_not_to_the_settings() {
+        let stored = Settings {
+            show_browser: false,
+            ..settings()
+        };
+
+        let forced = stored
+            .to_run_config(PasswordProvider::new(|| None), Some(true))
+            .unwrap();
+        assert!(forced.show_browser);
+        assert!(!stored.show_browser, "the settings are left alone");
+
+        let hidden = stored
+            .to_run_config(PasswordProvider::new(|| None), Some(false))
+            .unwrap();
+        assert!(!hidden.show_browser);
+    }
+
+    #[test]
+    fn without_an_override_the_run_uses_what_is_stored() {
+        for stored in [true, false] {
+            let settings = Settings {
+                show_browser: stored,
+                ..settings()
+            };
+            let config = settings
+                .to_run_config(PasswordProvider::new(|| None), None)
+                .unwrap();
+
+            assert_eq!(config.show_browser, stored);
+        }
     }
 }

@@ -1,6 +1,7 @@
 //! Personio Tracker — a terminal UI that fills in pending attendance days.
 
 mod browser;
+mod calendar;
 mod cli;
 mod config;
 mod event;
@@ -23,7 +24,7 @@ OPTIONS:
     --cli          Run once and print progress to stdout, for cron jobs
     --headless     Force the browser to stay hidden for this run
     --show         Force the browser to be visible for this run
-    --paths        Print the settings and session file locations
+    --paths        Print the settings, session and calendar file locations
     -h, --help     Print this help
     -V, --version  Print the version
 
@@ -34,6 +35,9 @@ CONFIGURATION:
       PERSONIO_EMAIL, PERSONIO_COMPANY, EMPLOYEE_ID, PERSONIO_PASSWORD,
       SHOW_BROWSER, START_TIME_FIRST_SLOT, END_TIME_FIRST_SLOT,
       START_TIME_SECOND_SLOT, END_TIME_SECOND_SLOT
+
+    EMPLOYEE_ID is the last segment of your Personio attendance URL:
+    https://<company>.app.personio.com/attendance/employee/<employee id>
 
     The password is read from the OS keychain first (service `personio-track`),
     falling back to PERSONIO_PASSWORD.
@@ -99,6 +103,7 @@ async fn main() -> Result<()> {
         Command::Paths => {
             println!("settings: {}", config::settings_path()?.display());
             println!("session:  {}", config::session_path()?.display());
+            println!("calendar: {}", config::calendar_path()?.display());
             println!(
                 "chrome:   {}",
                 browser::launch::find_chrome()

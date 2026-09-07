@@ -5,6 +5,7 @@ use std::time::{Duration, Instant};
 use crossterm::event::{KeyCode, KeyEvent, KeyEventKind, KeyModifiers};
 use tokio::task::JoinHandle;
 
+use crate::calendar::{Calendar, MonthKey, Recorder};
 use crate::config::Settings;
 use crate::event::{Severity, Summary, TrackingEvent};
 
@@ -74,6 +75,21 @@ impl Field {
         }
     }
 
+    /// Where the value comes from, for the fields whose source is not
+    /// obvious from the label. Shown under the configuration pane while the
+    /// field is selected.
+    pub fn hint(self) -> Option<&'static str> {
+        match self {
+            Self::Company => {
+                Some("The subdomain of your Personio URL: acme.app.personio.com → acme")
+            }
+            Self::EmployeeId => {
+                Some("The number ending your Personio attendance URL: /attendance/employee/1234")
+            }
+            _ => None,
+        }
+    }
+
     /// A toggle and the write-only password field are not free-text.
     fn is_text(self) -> bool {
         !matches!(self, Self::ShowBrowser)
@@ -111,7 +127,16 @@ pub struct App {
     pub log_scroll: u16,
     pub log_follow: bool,
     pub summary: Option<Summary>,
+    /// What is known about each day, from earlier runs and this one.
+    recorder: Recorder,
+    /// How many months back the grid is showing. Kept as a distance rather
+    /// than a month so that leaving the app open past midnight on the 1st
+    /// cannot strand the view on a month that is no longer the current one.
+    month_offset: usize,
     pub toast: Option<Toast>,
+    /// Advances once per tick; the only input the running animations take, so
+    /// rendering stays a pure function of state.
+    pub tick: u64,
     pub keychain_has_password: bool,
     pub should_quit: bool,
     /// Present while a run is in flight, so it can be aborted on force-quit.
@@ -122,9 +147,11 @@ impl App {
     /// `keychain_has_password` is passed in rather than read here: the
     /// platform keychain lookup can take seconds on macOS, and a constructor
     /// that blocks on I/O makes the whole UI untestable.
-    pub fn new(settings: Settings, keychain_has_password: bool) -> Self {
+    pub fn new(settings: Settings, keychain_has_password: bool, calendar: Calendar) -> Self {
         Self {
             saved_settings: settings.clone(),
+            recorder: Recorder::new(calendar),
+            month_offset: 0,
             settings,
             status: Status::Idle,
             pane: Pane::Config,
@@ -136,6 +163,7 @@ impl App {
             log_follow: true,
             summary: None,
             toast: None,
+            tick: 0,
             keychain_has_password,
             should_quit: false,
             run_task: None,
@@ -221,7 +249,15 @@ impl App {
         });
     }
 
-    pub fn expire_toast(&mut self) {
+    /// One beat of the UI clock: move the animations on and retire a stale
+    /// toast. Wraps rather than saturates, so a long-lived session keeps
+    /// animating instead of freezing on a maxed-out counter.
+    pub fn on_tick(&mut self) {
+        self.tick = self.tick.wrapping_add(1);
+        self.expire_toast();
+    }
+
+    fn expire_toast(&mut self) {
         if self
             .toast
             .as_ref()
@@ -231,9 +267,43 @@ impl App {
         }
     }
 
-    /// Folds a tracking event into the log, summary and status.
+    /// Every day the runs have resolved, for the calendar grid.
+    pub fn calendar(&self) -> &Calendar {
+        self.recorder.calendar()
+    }
+
+    /// Days the last run could not place on the grid.
+    pub fn unplaced_days(&self) -> usize {
+        self.recorder.unplaced()
+    }
+
+    /// The month the grid is showing.
+    pub fn viewed_month(&self) -> MonthKey {
+        let mut month = MonthKey::current();
+        for _ in 0..self.month_offset {
+            month = month.previous();
+        }
+        month
+    }
+
+    /// Snaps the grid back to the current month, which is where a run starts.
+    pub fn show_current_month(&mut self) {
+        self.month_offset = 0;
+    }
+
+    /// How far back paging may go: as far as the record reaches, and no
+    /// further — there is nothing to look at in months nobody ever walked.
+    fn oldest_offset(&self) -> usize {
+        self.calendar()
+            .oldest_month()
+            .map_or(0, |oldest| MonthKey::current().months_since(oldest))
+    }
+
+    /// Folds a tracking event into the log, summary, status and calendar.
     pub fn apply_tracking_event(&mut self, event: TrackingEvent) {
         self.push_log(event.line(), event.severity());
+
+        self.recorder.apply(&event);
 
         match event {
             TrackingEvent::SessionFinish(summary) => {
@@ -351,6 +421,14 @@ impl App {
                 self.move_up();
                 None
             }
+            KeyCode::Char('h') | KeyCode::Left => {
+                self.month_offset = (self.month_offset + 1).min(self.oldest_offset());
+                None
+            }
+            KeyCode::Char('l') | KeyCode::Right => {
+                self.month_offset = self.month_offset.saturating_sub(1);
+                None
+            }
             KeyCode::Char('g') => {
                 if self.pane == Pane::Log {
                     self.log_scroll = 0;
@@ -448,13 +526,14 @@ pub fn edit_is_secret(field: Field) -> bool {
 #[cfg(test)]
 mod tests {
     use super::*;
+    use crate::calendar::DayState;
 
     fn key(code: KeyCode) -> KeyEvent {
         KeyEvent::new(code, KeyModifiers::NONE)
     }
 
     fn app() -> App {
-        App::new(Settings::default(), false)
+        App::new(Settings::default(), false, Calendar::default())
     }
 
     #[test]
@@ -638,5 +717,84 @@ mod tests {
 
         app.handle_key(key(KeyCode::Char('G')));
         assert!(app.log_follow);
+    }
+
+    /// A record reaching back two months is two pages of paging.
+    fn app_with_a_record() -> App {
+        let current = MonthKey::current();
+        let mut calendar = Calendar::default();
+        calendar.set(current, 1, DayState::Tracked);
+        calendar.set(current.previous().previous(), 1, DayState::Tracked);
+
+        App::new(Settings::default(), false, calendar)
+    }
+
+    #[test]
+    fn the_grid_opens_on_the_current_month() {
+        assert_eq!(app().viewed_month(), MonthKey::current());
+    }
+
+    #[test]
+    fn h_and_l_page_the_month_grid() {
+        let mut app = app_with_a_record();
+        let current = MonthKey::current();
+
+        app.handle_key(key(KeyCode::Char('h')));
+        assert_eq!(app.viewed_month(), current.previous());
+
+        app.handle_key(key(KeyCode::Char('h')));
+        assert_eq!(app.viewed_month(), current.previous().previous());
+
+        app.handle_key(key(KeyCode::Char('l')));
+        assert_eq!(app.viewed_month(), current.previous());
+    }
+
+    /// There is nothing to see past the record, in either direction: the
+    /// future has not happened and older months were never walked.
+    #[test]
+    fn paging_stops_at_both_ends_of_the_record() {
+        let mut app = app_with_a_record();
+        let current = MonthKey::current();
+
+        for _ in 0..5 {
+            app.handle_key(key(KeyCode::Char('h')));
+        }
+        assert_eq!(app.viewed_month(), current.previous().previous());
+
+        for _ in 0..5 {
+            app.handle_key(key(KeyCode::Char('l')));
+        }
+        assert_eq!(app.viewed_month(), current);
+    }
+
+    #[test]
+    fn with_no_record_there_is_nowhere_to_page_to() {
+        let mut app = app();
+        app.handle_key(key(KeyCode::Char('h')));
+
+        assert_eq!(app.viewed_month(), MonthKey::current());
+    }
+
+    #[test]
+    fn a_run_snaps_the_grid_back_to_the_current_month() {
+        let mut app = app_with_a_record();
+        app.handle_key(key(KeyCode::Char('h')));
+        app.show_current_month();
+
+        assert_eq!(app.viewed_month(), MonthKey::current());
+    }
+
+    /// `h` is a letter first: paging must not eat what is being typed.
+    #[test]
+    fn h_and_l_type_themselves_while_a_field_is_being_edited() {
+        let mut app = app_with_a_record();
+        app.mode = Mode::Editing;
+        app.edit_buffer.clear();
+
+        app.handle_key(key(KeyCode::Char('h')));
+        app.handle_key(key(KeyCode::Char('l')));
+
+        assert_eq!(app.edit_buffer, "hl");
+        assert_eq!(app.viewed_month(), MonthKey::current());
     }
 }

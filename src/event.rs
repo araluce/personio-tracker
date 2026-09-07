@@ -3,6 +3,7 @@
 //! Mirrors the event vocabulary emitted by the original Node implementation so
 //! both front-ends (TUI and plain CLI) can render the same run narrative.
 
+use chrono::NaiveDate;
 use serde::{Deserialize, Serialize};
 use tokio::sync::mpsc::UnboundedSender;
 
@@ -29,6 +30,34 @@ impl Summary {
     }
 }
 
+/// Which calendar day a timesheet row belongs to, and how sure the tracker is.
+///
+/// The variants are kept apart rather than collapsed into one day number
+/// because they are not equally trustworthy, and a day painted onto the wrong
+/// date is worse than a day left unpainted.
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub enum DaySlot {
+    /// A machine-readable date off the row itself, so month and day are
+    /// certain.
+    Dated(NaiveDate),
+    /// The day number the row prints; the month comes from the walk.
+    DayOfMonth(u32),
+    /// Only the row's position in the timesheet. Placeable only if the month
+    /// turns out to be listed one row per day, which the recorder checks.
+    Row(usize),
+}
+
+/// Why Personio refuses a day, taken from its own row flags rather than from
+/// the wording it shows — which is localised, and would not survive a
+/// different UI language.
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub enum SkipKind {
+    Weekend,
+    Holiday,
+    /// An absence of any kind: vacation, sick leave, unpaid leave.
+    OffDay,
+}
+
 /// A single step of progress during a tracking run.
 #[derive(Debug, Clone)]
 pub enum TrackingEvent {
@@ -49,9 +78,19 @@ pub enum TrackingEvent {
     MonthReachedToday {
         index: usize,
     },
-    DayTracked(String),
-    DaySkipped(String),
-    DayAlreadyRegistered(String),
+    DayTracked {
+        slot: DaySlot,
+        label: String,
+    },
+    DaySkipped {
+        slot: DaySlot,
+        label: String,
+        kind: SkipKind,
+    },
+    DayAlreadyRegistered {
+        slot: DaySlot,
+        label: String,
+    },
     HoursPendingCheck {
         confirmed: f64,
         target: f64,
@@ -79,9 +118,11 @@ impl TrackingEvent {
             Self::MonthPrevious => "Going to previous month".to_string(),
             Self::MonthPreviousMissing => "No previous month found".to_string(),
             Self::MonthReachedToday { index } => format!("Reached today's row at index {index}"),
-            Self::DayTracked(day) => format!("{day}: shift registered"),
-            Self::DaySkipped(day) => format!("{day}: not trackable"),
-            Self::DayAlreadyRegistered(day) => format!("{day}: already registered"),
+            Self::DayTracked { label, .. } => format!("{label}: shift registered"),
+            Self::DaySkipped { label, .. } => format!("{label}: not trackable"),
+            Self::DayAlreadyRegistered { label, .. } => {
+                format!("{label}: already registered")
+            }
             Self::HoursPendingCheck {
                 confirmed,
                 target,
@@ -97,8 +138,10 @@ impl TrackingEvent {
     pub fn severity(&self) -> Severity {
         match self {
             Self::SessionError(_) | Self::HoursPendingCheckMissing(_) => Severity::Error,
-            Self::DayTracked(_) | Self::SessionFinish(_) | Self::AuthSessionSaved => Severity::Good,
-            Self::DaySkipped(_) | Self::DayAlreadyRegistered(_) => Severity::Muted,
+            Self::DayTracked { .. } | Self::SessionFinish(_) | Self::AuthSessionSaved => {
+                Severity::Good
+            }
+            Self::DaySkipped { .. } | Self::DayAlreadyRegistered { .. } => Severity::Muted,
             _ => Severity::Info,
         }
     }

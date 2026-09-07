@@ -10,13 +10,18 @@ use crossterm::event::{Event, EventStream};
 use futures::StreamExt;
 use tokio::sync::mpsc;
 
+use crate::calendar::Calendar;
 use crate::config::{PasswordProvider, Settings};
-use crate::event::{EventSink, Severity};
+use crate::event::{EventSink, Severity, TrackingEvent};
 use crate::{keychain, tracking};
 
 use app::{Action, App, Status};
 
-const TICK: Duration = Duration::from_millis(250);
+/// Idle needs no animation, so the clock only has to retire toasts.
+const TICK_IDLE: Duration = Duration::from_millis(250);
+/// A run redraws often enough for the spinner and the activity trail to move
+/// smoothly. Personio is slow; the screen should not look hung while it thinks.
+const TICK_RUNNING: Duration = Duration::from_millis(80);
 
 /// Takes over the terminal, runs the loop, and always restores the terminal —
 /// including on a panic, which `ratatui::restore` handles via its hook.
@@ -29,10 +34,11 @@ pub async fn run(settings: Settings) -> Result<()> {
 }
 
 async fn event_loop(terminal: &mut ratatui::DefaultTerminal, settings: Settings) -> Result<()> {
-    let mut app = App::new(settings, keychain::has_password());
+    let mut app = App::new(settings, keychain::has_password(), Calendar::load());
     let (sink, mut events) = mpsc::unbounded_channel();
     let mut input = EventStream::new();
-    let mut ticker = tokio::time::interval(TICK);
+    let mut ticker = tokio::time::interval(TICK_IDLE);
+    let mut animating = false;
 
     loop {
         terminal
@@ -41,6 +47,12 @@ async fn event_loop(terminal: &mut ratatui::DefaultTerminal, settings: Settings)
 
         if app.should_quit {
             break;
+        }
+
+        // Only a run pays for the faster clock.
+        if app.is_running() != animating {
+            animating = app.is_running();
+            ticker = tokio::time::interval(if animating { TICK_RUNNING } else { TICK_IDLE });
         }
 
         tokio::select! {
@@ -59,10 +71,17 @@ async fn event_loop(terminal: &mut ratatui::DefaultTerminal, settings: Settings)
                 }
             }
             Some(event) = events.recv() => {
+                let run_over = matches!(
+                    event,
+                    TrackingEvent::SessionFinish(_) | TrackingEvent::SessionError(_)
+                );
                 app.apply_tracking_event(event);
+                if run_over {
+                    finish_run(&mut app);
+                }
             }
             _ = ticker.tick() => {
-                app.expire_toast();
+                app.on_tick();
             }
         }
     }
@@ -111,6 +130,28 @@ async fn perform(app: &mut App, action: Action, sink: &EventSink) {
     }
 }
 
+/// Closes a run out: says what the grid could not account for, then writes
+/// the day record.
+///
+/// The record is written once a run is over rather than after every day: a run
+/// killed halfway loses nothing that matters, because the next one reads the
+/// same days back from Personio.
+fn finish_run(app: &mut App) {
+    // Said out loud on purpose. A grid quietly missing days looks exactly
+    // like a broken one, and that is a bug report nobody can act on.
+    let unplaced = app.unplaced_days();
+    if unplaced > 0 {
+        app.push_log(
+            format!("{unplaced} day(s) could not be placed on the month grid"),
+            Severity::Error,
+        );
+    }
+
+    if let Err(error) = app.calendar().save() {
+        app.toast(format!("Could not save the day record: {error:#}"), true);
+    }
+}
+
 fn start_tracking(app: &mut App, sink: &EventSink) {
     // Passed as a source, not a value: pressing `t` must not reach the
     // keychain, only a run that discovers it has to log in.
@@ -129,6 +170,8 @@ fn start_tracking(app: &mut App, sink: &EventSink) {
 
     app.clear_log();
     app.summary = None;
+    // The walk starts at the current month, so the grid should be showing it.
+    app.show_current_month();
     app.status = Status::Running;
 
     let sink = sink.clone();

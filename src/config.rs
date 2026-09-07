@@ -18,6 +18,7 @@ const ORGANIZATION: &str = "personiotrack";
 const APPLICATION: &str = "personio-tracker-tui";
 const SETTINGS_FILE: &str = "settings.json";
 const SESSION_FILE: &str = "session.json";
+const CALENDAR_FILE: &str = "calendar.json";
 
 const DEFAULT_START_FIRST: &str = "09:00";
 const DEFAULT_END_FIRST: &str = "14:00";
@@ -251,6 +252,10 @@ pub fn settings_path() -> Result<PathBuf> {
 
 pub fn session_path() -> Result<PathBuf> {
     Ok(project_dirs()?.data_dir().join(SESSION_FILE))
+}
+
+pub fn calendar_path() -> Result<PathBuf> {
+    Ok(project_dirs()?.data_dir().join(CALENDAR_FILE))
 }
 
 #[cfg(test)]

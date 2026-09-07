@@ -127,6 +127,7 @@ fn render_log(frame: &mut Frame, app: &App, area: Rect) {
         .map(|entry| {
             let style = match entry.severity {
                 Severity::Good => Style::new().fg(GOOD),
+                Severity::Warning => Style::new().fg(WARN),
                 Severity::Error => Style::new().fg(BAD),
                 Severity::Muted => Style::new().fg(MUTED),
                 Severity::Info => Style::new(),
@@ -601,6 +602,7 @@ mod tests {
     use super::*;
     use crate::calendar::{Calendar, DayState};
     use crate::config::Settings;
+    use crate::event::TrackingEvent;
     use ratatui::Terminal;
     use ratatui::backend::TestBackend;
     use ratatui::buffer::Buffer;
@@ -988,6 +990,27 @@ mod tests {
                 height,
             );
         }
+    }
+
+    /// A check the run could not make is not a failure, and must not be
+    /// dressed as one.
+    #[test]
+    fn a_warning_in_the_log_is_not_coloured_like_an_error() {
+        let mut app = App::new(Settings::default(), false, Calendar::default());
+        app.apply_tracking_event(TrackingEvent::HoursPendingCheckMissing(
+            "No tracked month hours found (count=0)".into(),
+        ));
+
+        let screen = draw(&app, 80, 40);
+        let rows: Vec<&str> = screen.lines().collect();
+        let row = rows
+            .iter()
+            .position(|row| row.contains("No tracked month hours"))
+            .expect("the line is logged");
+        let column = column_of(rows[row], "No tracked").unwrap();
+
+        let buffer = draw_styled(&app, 80, 40);
+        assert_eq!(buffer[(column as u16, row as u16)].fg, WARN);
     }
 
     #[test]

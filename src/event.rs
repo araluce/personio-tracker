@@ -137,7 +137,10 @@ impl TrackingEvent {
     /// Severity hint so front-ends can colour the line without re-matching.
     pub fn severity(&self) -> Severity {
         match self {
-            Self::SessionError(_) | Self::HoursPendingCheckMissing(_) => Severity::Error,
+            Self::SessionError(_) => Severity::Error,
+            // Not a failure: the check could not be made, so the walk stops
+            // where it is and the run finishes cleanly.
+            Self::HoursPendingCheckMissing(_) => Severity::Warning,
             Self::DayTracked { .. } | Self::SessionFinish(_) | Self::AuthSessionSaved => {
                 Severity::Good
             }
@@ -152,6 +155,8 @@ pub enum Severity {
     Info,
     Good,
     Muted,
+    /// Something the run could not determine and worked around.
+    Warning,
     Error,
 }
 

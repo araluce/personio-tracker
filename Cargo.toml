@@ -4,6 +4,7 @@ version = "0.1.0"
 edition = "2024"
 description = "Terminal UI that auto-fills Personio attendance for pending working days"
 license = "MIT"
+repository = "https://github.com/araluce/personio-tracker"
 
 # The installed command. The package keeps its own name, and so does the
 # platform data directory, so an existing settings/session/calendar set is

@@ -1,4 +1,7 @@
 /target
+
+# Local AI tooling state: generated, and full of this machine's paths.
+.atl/
 .env
 session.json
 settings.json

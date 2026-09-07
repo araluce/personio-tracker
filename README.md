@@ -1,9 +1,15 @@
-# personio-tracker
+<p align="center">
+  <img src="assets/logo.svg" alt="personio-tracker — fills your pending attendance days, from a terminal" width="760">
+</p>
 
 A terminal UI that fills in your pending Personio attendance days.
 
 A Rust port of `personio-track`, an Electron tray app that drove Playwright.
 Same behaviour, one 4 MB binary, no Node runtime and no bundled browser.
+
+> **Unofficial.** Not affiliated with, endorsed by, or supported by Personio SE.
+> It drives their web UI exactly as you would, which is also why a redesign on
+> their side can break it.
 
 ```
  Personio Tracker │ ⠸ running

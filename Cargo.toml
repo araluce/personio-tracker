@@ -5,6 +5,13 @@ edition = "2024"
 description = "Terminal UI that auto-fills Personio attendance for pending working days"
 license = "MIT"
 
+# The installed command. The package keeps its own name, and so does the
+# platform data directory, so an existing settings/session/calendar set is
+# still found after installing.
+[[bin]]
+name = "personio-tracker"
+path = "src/main.rs"
+
 [dependencies]
 anyhow = "1.0.104"
 chromiumoxide = "0.9.1"

@@ -13,10 +13,10 @@ use anyhow::Result;
 use config::Settings;
 
 const HELP: &str = "\
-personio-tracker-tui — fill pending Personio attendance days
+personio-tracker — fill pending Personio attendance days
 
 USAGE:
-    personio-tracker-tui [OPTIONS]
+    personio-tracker [OPTIONS]
 
 OPTIONS:
     (none)         Launch the terminal UI
@@ -92,7 +92,8 @@ async fn main() -> Result<()> {
             return Ok(());
         }
         Command::Version => {
-            println!("{} {}", env!("CARGO_PKG_NAME"), env!("CARGO_PKG_VERSION"));
+            // The command as installed, not the package it came from.
+            println!("{} {}", env!("CARGO_BIN_NAME"), env!("CARGO_PKG_VERSION"));
             return Ok(());
         }
         Command::Paths => {

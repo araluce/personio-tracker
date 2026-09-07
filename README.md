@@ -120,4 +120,4 @@ walk, step by step.
 **The selectors are Personio's, not ours.** This drives their real web UI, so a
 redesign on their side breaks it. Everything that can break that way is listed
 in [Tracking → When it breaks](docs/tracking.md#when-it-breaks), and every
-selector lives in one module: `src/tracking.rs`.
+selector lives in one file: `src/tracking/selectors.rs`.

@@ -58,8 +58,9 @@ half-filled day is not left behind by accident.
 ## When it breaks
 
 **The selectors are Personio's, not ours.** This drives their real web UI. Every
-selector lives in one `selectors` module in `src/tracking.rs`, which is the
-first place to look when a run stops finding things.
+selector lives in `src/tracking/selectors.rs`, which is the first place to look
+when a run stops finding things — and it sits next door to the walk that breaks
+when one of them stops matching.
 
 | Risk | Detail |
 | --- | --- |

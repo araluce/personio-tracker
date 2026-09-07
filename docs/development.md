@@ -11,7 +11,10 @@ make build    # release
 
 | Module | Holds |
 | --- | --- |
-| `src/tracking.rs` | the walk, and **every selector** — one module, on purpose |
+| `src/tracking/mod.rs` | the walk: open the month, fill its days, step back |
+| `src/tracking/day.rs` | one timesheet row: reading it, and which day it is |
+| `src/tracking/auth.rs` | cookie banner, login form, waiting to be let in |
+| `src/tracking/selectors.rs` | **every Personio selector** — one file, on purpose |
 | `src/browser/locator.rs` | an auto-waiting `Locator` on raw CDP |
 | `src/browser/launch.rs` | browser discovery and the throwaway profile |
 | `src/browser/session.rs` | saving and replaying cookies and `localStorage` |
@@ -25,9 +28,10 @@ make build    # release
 Test counts, as a map of where the risk is thought to be:
 
 ```
-32  tui::ui          23  tracking       22  calendar
+32  tui::ui          22  tracking::day  22  calendar
 21  tui::app         16  config          8  browser::locator
  5  keychain          4  browser::launch 4  browser::session
+ 2  tracking          1  tracking::auth
 ```
 
 ## Read these first
@@ -47,7 +51,7 @@ Each of these was learned by getting it wrong first.
 | Rule | Why |
 | --- | --- |
 | Rendering is a pure function of state | `ui.rs` never mutates `App`. Animations take a tick counter, nothing else |
-| The page script lives in `row_expression()`, not inline | a syntax error there breaks *every* row read in a run, so it is built somewhere it can be tested |
+| The page script lives in `day.rs::row_expression()`, not inline | a syntax error there breaks *every* row read in a run, so it is built somewhere it can be tested |
 | A day that cannot be placed is counted, not guessed | one wrong offset recolours a whole month. See [Month grid](month-grid.md#how-a-day-is-placed) |
 | The keychain is read only when a login actually needs it | reading it raises an OS dialog. See [Authentication](authentication.md) |
 | Settings beat the environment, always | including `showBrowser`, which needs the raw JSON to tell "absent" from "false" |
@@ -100,5 +104,5 @@ Deliberate:
 
 - [ ] `make lint` and `make test` pass
 - [ ] a new behaviour has a test that fails without it — verified, not assumed
-- [ ] a new selector went into the `selectors` module, not inline
+- [ ] a new selector went into `tracking/selectors.rs`, not inline
 - [ ] the affected doc under `docs/` says the new truth

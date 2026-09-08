@@ -19,7 +19,14 @@ DESTDIR ?=
 CARGO ?= cargo
 # Locked, so a package build resolves exactly what Cargo.lock pins.
 CARGO_FLAGS ?= --locked
-RELEASE := target/release/$(BIN)
+
+# Where cargo actually put the binary. Taken from the environment rather than
+# hardcoded to target/, because anyone sharing build artifacts across projects
+# has CARGO_TARGET_DIR set and would otherwise install nothing at all.
+# A build.target-dir in .cargo/config.toml is not picked up: pass
+# CARGO_TARGET_DIR to match it.
+CARGO_TARGET_DIR ?= target
+RELEASE := $(CARGO_TARGET_DIR)/release/$(BIN)
 
 .PHONY: help build test lint fmt install uninstall clean
 

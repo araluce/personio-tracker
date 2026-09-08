@@ -38,10 +38,38 @@ Same behaviour, one 4 MB binary, no Node runtime and no bundled browser.
  t track · w save · j/k move · h/l month · enter edit · ? help · q quit
 ```
 
-## Quick path
+## Quick install
 
 ```sh
-make install PREFIX=$HOME/.local   # or: cargo install --path .
+git clone https://github.com/araluce/personio-tracker
+cd personio-tracker
+make install PREFIX="$HOME/.local"     # or: cargo install --path .
+```
+
+`make` on its own lists the other targets, `sudo make install` puts it in
+`/usr/local/bin`, and [Install](docs/install.md) covers `DESTDIR` packaging and
+how to uninstall. If the command is not found afterwards, `$HOME/.local/bin` is
+not on your `PATH`.
+
+### What you need
+
+| | |
+| --- | --- |
+| **Rust** | a current stable toolchain — the crate is edition 2024, and is developed and tested on 1.98. Needed to build only; the binary is self-contained |
+| **A Chromium browser** | Chrome, Chromium or Edge. Not bundled: it is found at runtime, and `--paths` prints which one won |
+| **Nothing else** | no OpenSSL, no `pkg-config`, no `-dev` packages. The dependency tree is pure Rust plus each platform's own APIs, which is why CI builds it on a bare Ubuntu runner with no install step |
+
+### Where it runs
+
+| System | State | Detail |
+| --- | --- | --- |
+| **macOS** | verified | developed here; the password goes in the login keychain |
+| **Linux** | verified by CI | all 140 tests pass on `ubuntu-latest`. The password goes to the Secret Service over D-Bus (gnome-keyring, KWallet), or to `PERSONIO_PASSWORD` where none is running |
+| **Windows** | untested | the browser paths and the Credential Manager backend are in the tree and it should build, but nobody has run it. Reports welcome |
+
+## First run
+
+```sh
 personio-tracker
 ```
 

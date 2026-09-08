@@ -1,20 +1,38 @@
 # Install
 
-Three routes, all installing the same `personio-tracker` binary. **Pick one** —
-two copies on a PATH is one too many.
+```sh
+git clone https://github.com/araluce/personio-tracker
+cd personio-tracker
+```
+
+Then one of three routes, all installing the same `personio-tracker` binary.
+**Pick one** — two copies on a PATH is one too many.
 
 ```sh
-make install PREFIX=$HOME/.local   # no sudo, no PATH surprises
-sudo make install                  # /usr/local/bin
-cargo install --path .             # ~/.cargo/bin, and cargo remembers it
+make install PREFIX="$HOME/.local"   # no sudo; needs ~/.local/bin on your PATH
+sudo make install                    # /usr/local/bin
+cargo install --path .               # ~/.cargo/bin, and cargo remembers it
 ```
 
 ## Requirements
 
 | Need | Detail |
 | --- | --- |
-| Rust 1.98+ | to build; nothing at runtime |
+| A current stable Rust | the crate is edition 2024, developed and tested on 1.98. Build-time only: the binary is self-contained |
 | A Chromium-based browser | discovered, not bundled — see below |
+| Nothing from your package manager | no OpenSSL, no `pkg-config`, no `-dev` packages. The dependency tree is pure Rust plus each platform's own APIs, which is why CI builds it on a bare Ubuntu runner with no install step |
+
+## Where it runs
+
+| System | State | Detail |
+| --- | --- | --- |
+| **macOS** | verified | where it is developed. The password goes in the login keychain, via Security.framework |
+| **Linux** | verified by CI | all 140 tests pass on `ubuntu-latest`, the browser-driving ones included. The password goes to the Secret Service over D-Bus — gnome-keyring, KWallet — through `zbus`, which is pure Rust, so no `libdbus` to install |
+| **Windows** | untested | the browser paths and the Credential Manager backend are both in the tree and it should build, but nobody has run it. Reports welcome |
+
+Where no Secret Service is running — a headless box, a container — the password
+lookup fails rather than blocking and `PERSONIO_PASSWORD` takes over. See
+[Authentication](authentication.md#when-there-is-no-keychain).
 
 The browser is looked for in this order, and `--paths` prints which one won:
 

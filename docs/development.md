@@ -72,8 +72,8 @@ Things that have bitten, in this codebase specifically:
 - **A `Buffer` column is a cell, not a byte.** Pane borders (`│ ╭ ─`) are three
   bytes each, so `str::find` lands far to the right of the column it names. The
   ui tests carry a `column_of` helper for this.
-- **A `Buffer` cell holds one grapheme.** A two-column `██` cell is two cells
-  whose symbol is `█`.
+- **A `Buffer` cell holds one grapheme.** A two-column `▇▇` cell is two cells
+  whose symbol is `▇`.
 - **Date fixtures are built from `Local`.** A hardcoded UTC string would pass in
   UTC and fail in Madrid, or worse, the other way round.
 - **No test mutates the process environment.** It is `unsafe` in edition 2024

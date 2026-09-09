@@ -5,10 +5,10 @@ One cell per day of the month, coloured by what became of it.
 ```
 ╭ September 2026 ────────────────╮
 │      Mo Tu We Th Fr Sa Su      │
-│         ██ ██ ██ ██ ██ ██      │   the 1st sits under its own weekday
-│      ██ ██ ██ ██ ██ ██ ██      │
-│      ██ ██ ██ ██ ██ ██ ██      │
-│      ██ ██ ██ ██ ██ ·· ··      │   ·· nothing known yet
+│         ▇▇ ▇▇ ▇▇ ▇▇ ▇▇ ▇▇      │   the 1st sits under its own weekday
+│      ▇▇ ▇▇ ▇▇ ▇▇ ▇▇ ▇▇ ▇▇      │
+│      ▇▇ ▇▇ ▇▇ ▇▇ ▇▇ ▇▇ ▇▇      │
+│      ▇▇ ▇▇ ▇▇ ▇▇ ▇▇ ·· ··      │   ·· nothing known yet
 │      ·· ·· ··                  │
 ╰────────────────────────────────╯
 ```
@@ -19,7 +19,7 @@ One cell per day of the month, coloured by what became of it.
 | green | already registered before a run reached it |
 | light blue | an absence or day off |
 | magenta | a public holiday |
-| grey `██` | weekend |
+| grey `▇▇` | weekend |
 | grey `··` | nothing known about that day yet |
 
 Today's cell is underlined, and `?` lists the colours without leaving the app.

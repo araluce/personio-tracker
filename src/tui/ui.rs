@@ -30,7 +30,10 @@ const WEEKDAYS: &str = "Mo Tu We Th Fr Sa Su";
 
 /// A resolved day, and a day nothing is known about. Distinct in symbol as
 /// well as in colour, so the grid still reads where the palette is unusual.
-const CELL: &str = "██";
+///
+/// Seven eighths of a block rather than a whole one: the missing eighth is the
+/// gap that keeps a week's cells off the week above them.
+const CELL: &str = "▇▇";
 const EMPTY_CELL: &str = "··";
 
 /// The travelling highlight, head first. Ending on the border's own colour is
@@ -913,6 +916,19 @@ mod tests {
         let screen = draw(&App::new(Settings::default(), false, calendar), 80, 40);
 
         assert_eq!(screen.matches(CELL).count(), month.length() as usize);
+    }
+
+    /// Week rows are adjacent lines, so a cell that fills its whole line box
+    /// touches the one above it and a fully tracked month renders as seven
+    /// solid bars instead of a calendar. Nothing can be put between the rows —
+    /// a blank line would cost the grid its fifth week — so the gap has to
+    /// come out of the glyph itself.
+    #[test]
+    fn a_grid_cell_leaves_a_gap_above_itself() {
+        assert!(
+            !CELL.contains('\u{2588}'),
+            "the full block fills the line box, so weeks touch: {CELL}"
+        );
     }
 
     #[test]

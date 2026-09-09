@@ -28,12 +28,12 @@ const SPINNER: [&str; 10] = ["⠋", "⠙", "⠹", "⠸", "⠼", "⠴", "⠦", "�
 /// Weekday initials, aligned with the two-column cells below them.
 const WEEKDAYS: &str = "Mo Tu We Th Fr Sa Su";
 
-/// A resolved day, and a day nothing is known about. Distinct in symbol as
-/// well as in colour, so the grid still reads where the palette is unusual.
-///
-/// Seven eighths of a block rather than a whole one: the missing eighth is the
-/// gap that keeps a week's cells off the week above them.
+/// A resolved day. Seven eighths of a block rather than a whole one: the
+/// missing eighth is the gap that keeps a week's cells off the week above them.
 const CELL: &str = "▇▇";
+
+/// A day nothing is known about. Distinct from `CELL` in symbol as well as in
+/// colour, so the grid still reads where the palette is unusual.
 const EMPTY_CELL: &str = "··";
 
 /// The travelling highlight, head first. Ending on the border's own colour is
@@ -918,17 +918,23 @@ mod tests {
         assert_eq!(screen.matches(CELL).count(), month.length() as usize);
     }
 
-    /// Week rows are adjacent lines, so a cell that fills its whole line box
-    /// touches the one above it and a fully tracked month renders as seven
-    /// solid bars instead of a calendar. Nothing can be put between the rows —
-    /// a blank line would cost the grid its fifth week — so the gap has to
-    /// come out of the glyph itself.
+    /// Week rows are adjacent lines, so a cell as tall as its line box touches
+    /// the one above it and a fully tracked month renders as seven solid bars
+    /// instead of a calendar. Nothing can be put between the rows — a blank
+    /// line would cost the grid its fifth week — so the gap has to come out of
+    /// the glyph: a lower block, shorter than the line it sits on.
+    ///
+    /// The full block caused this, but excluding it alone is not enough: every
+    /// left block from `▉` up is full height too, and any of them would bring
+    /// the bars straight back.
     #[test]
-    fn a_grid_cell_leaves_a_gap_above_itself() {
-        assert!(
-            !CELL.contains('\u{2588}'),
-            "the full block fills the line box, so weeks touch: {CELL}"
-        );
+    fn a_grid_cell_is_shorter_than_the_line_it_sits_on() {
+        for glyph in CELL.chars() {
+            assert!(
+                ('▁'..='▇').contains(&glyph),
+                "{glyph} is not a lower partial block, so weeks touch: {CELL}"
+            );
+        }
     }
 
     #[test]

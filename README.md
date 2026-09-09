@@ -8,32 +8,11 @@ A terminal UI that fills in your pending Personio attendance days.
 > It drives their web UI exactly as you would, which is also why a redesign on
 > their side can break it.
 
-```
- Personio Tracker │ ⠸ running
-╭ Live log ──────────────────────────────────╮╭ Configuration ─────────────────╮
-│14:22:01 Starting tracking session          ││▸ Email         me@acme.com     │
-│14:22:04 Valid session                      ││  Company       acme            │
-│14:22:06 Opening Time Tracking              ││  Employee ID   1234            │
-│14:22:09 Tracking month (30 rows)           ││  Slot 1 start  09:00           │
-│14:22:09 1 — Weekend: not trackable         ││  Slot 1 end    14:00           │
-│14:22:10 3: already registered              ││  Slot 2 start  15:00           │
-│14:22:22 4: shift registered                ││  Slot 2 end    18:00           │
-│14:22:34 5: shift registered                ││  Show browser  on              │
-│14:22:35 Reached today's row at index 4     ││  Password      •••••• saved    │
-│                                            │╰────────────────────────────────╯
-│                                            │╭ September 2026 ────────────────╮
-│                                            ││      Mo Tu We Th Fr Sa Su      │
-│                                            ││         ██ ██ ██ ██ ██ ██      │
-│                                            ││      ██ ██ ██ ██ ██ ██ ██      │
-│                                            ││      ██ ██ ██ ██ ██ ██ ██      │
-│                                            ││      ██ ██ ██ ██ ██ ·· ··      │
-│                                            ││      ·· ·· ··                  │
-│                                            │╰────────────────────────────────╯
-│                                            │╭ Summary ───────────────────────╮
-│                                            ││No runs yet.                    │
-╰━━━━───────────────────────────────────────━╯╰────────────────────────────────╯
- t track · w save · j/k move · h/l month · enter edit · ? help · q quit
-```
+<p align="center">
+  <img src="assets/screenshot.png"
+       alt="The app as it opens: configuration, the month grid and the live log"
+       width="900">
+</p>
 
 ## Quick install
 
@@ -80,6 +59,14 @@ personio-tracker
 The grid under the configuration is the month at a glance, and it is drawn from
 a local record: opening the app shows where the month stands before anything
 runs.
+
+`?` lists every key, and what each colour in the grid means:
+
+<p align="center">
+  <img src="assets/screenshot-help.png"
+       alt="The help overlay: every key, and the month grid legend"
+       width="820">
+</p>
 
 ## Run it daily
 

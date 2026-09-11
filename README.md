@@ -1,12 +1,19 @@
 <p align="center">
-  <img src="assets/logo.svg" alt="personio-tracker — fills your pending attendance days, from a terminal" width="760">
+  <img src="assets/logo.svg" alt="personio-tracker — types your hours into Personio, from a terminal" width="760">
 </p>
 
-A terminal UI that fills in your pending Personio attendance days.
+A terminal UI that types your hours into the Personio days you have not
+filled in yet.
 
 > **Unofficial.** Not affiliated with, endorsed by, or supported by Personio SE.
 > It drives their web UI exactly as you would, which is also why a redesign on
 > their side can break it.
+
+> **It types, you decide.** The hours it writes are the hours you configured, so
+> the record is only true if you keep it true. A timesheet is meant to match the
+> hours actually worked — in many countries that is a legal obligation, not a
+> formality. The [month grid](docs/month-grid.md) is there for exactly that: read
+> it, and fix any day it got wrong.
 
 <p align="center">
   <img src="assets/screenshot.png"
@@ -70,7 +77,7 @@ runs.
 
 ## Run it daily
 
-The point of the thing: never think about your timesheet again.
+The point of the thing: stop retyping the same two slots twenty times a month.
 
 ```sh
 which personio-tracker    # the path depends on how you installed it
@@ -86,8 +93,9 @@ whole crontab, so leave any `SHELL=` and `PATH=` lines already in there alone.
 
 `--cli` because a scheduler has no terminal, the absolute path because it has no
 useful PATH, and `--headless` because nobody is there to watch a browser open.
-Scheduled runs keep the month grid current too, so the UI shows the month
-without you ever pressing `t`.
+Scheduled runs keep the month grid current too, so opening the app shows what
+was written without you ever pressing `t` — which is also how you review the
+month.
 
 Try it before waiting for 09:00, since a failing cron job fails quietly:
 

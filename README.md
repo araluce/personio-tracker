@@ -1,5 +1,5 @@
 <p align="center">
-  <img src="assets/logo.svg" alt="personio-tracker — types your hours into Personio, from a terminal" width="760">
+  <img src="assets/logo.svg?t=123123" alt="personio-tracker — types your hours into Personio, from a terminal" width="760">
 </p>
 
 A terminal UI that types your hours into the Personio days you have not

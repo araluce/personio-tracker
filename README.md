@@ -79,37 +79,20 @@ runs.
 
 The point of the thing: stop retyping the same two slots twenty times a month.
 
-```sh
-which personio-tracker    # the path depends on how you installed it
-crontab -e                # opens $EDITOR; add the line below, save, done
-```
+Schedule `personio-tracker --cli --headless` with the scheduler your OS runs
+inside your login session — a LaunchAgent on macOS, a systemd user timer on
+Linux, Task Scheduler on Windows. `--cli` because a scheduler has no terminal,
+`--headless` because nobody is there to watch a browser open.
 
-```cron
-0 9 * * * /usr/local/bin/personio-tracker --cli --headless >> "$HOME/Library/Logs/personio-tracker.log" 2>&1
-```
+**Not `cron`.** A cron job runs outside the session, where the keychain cannot
+ask you for access: once the saved Personio session expires — after a reboot,
+typically — every run fails with `Login required`, and nothing tells you.
 
-Nothing to reload afterwards — `crontab -l` confirms it took. Saving writes the
-whole crontab, so leave any `SHELL=` and `PATH=` lines already in there alone.
-
-`--cli` because a scheduler has no terminal, the absolute path because it has no
-useful PATH, and `--headless` because nobody is there to watch a browser open.
+[Scheduling](docs/scheduling.md) has the LaunchAgent plist, the systemd units
+and the Task Scheduler command to copy, each set for weekdays at 09:00.
 Scheduled runs keep the month grid current too, so opening the app shows what
 was written without you ever pressing `t` — which is also how you review the
 month.
-
-Try it before waiting for 09:00, since a failing cron job fails quietly:
-
-```sh
-/usr/local/bin/personio-tracker --cli --headless; echo "exit=$?"
-```
-
-**On macOS, prefer a LaunchAgent.** A `cron` job runs outside the logged-in
-session, where the keychain is out of reach — which only bites when the saved
-session expires, but then it needs you. A LaunchAgent runs inside the session
-and logs in by itself.
-
-[Scheduling](docs/scheduling.md) has the plist to copy, the systemd option for
-Linux, and what to do when a run reports `Login required`.
 
 ## Documentation
 
@@ -120,7 +103,7 @@ Linux, and what to do when a run reports `Login required`.
 | understand the password and session handling | [Authentication](docs/authentication.md) |
 | read the month grid and its colours | [Month grid](docs/month-grid.md) |
 | know exactly what a run does to a timesheet | [Tracking](docs/tracking.md) |
-| schedule it: cron, launchd, systemd | [Scheduling](docs/scheduling.md) |
+| schedule it: launchd, systemd, Task Scheduler | [Scheduling](docs/scheduling.md) |
 | drive the UI: keys, panes, the log | [Interface](docs/interface.md) |
 | work on the code | [Development](docs/development.md) |
 

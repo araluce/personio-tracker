@@ -41,7 +41,7 @@ The footer carries the handful you reach for; `?` carries all of them. `h` and
 
 ```sh
 personio-tracker              # terminal UI
-personio-tracker --cli        # run once, print to stdout — for cron
+personio-tracker --cli        # run once, print to stdout — for a scheduler
 personio-tracker --headless   # hide the browser for this run
 personio-tracker --show       # show the browser for this run
 personio-tracker --paths      # settings, session, day record and browser locations
